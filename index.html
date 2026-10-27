@@ -1,0 +1,518 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Taxas Run - O Brasil não é para amadores</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f7f7f7;
+      color: #535353;
+      font-family: "Courier New", monospace;
+    }
+
+    .game-container {
+      width: min(1000px, 95vw);
+    }
+
+    .top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    h1 {
+      font-size: clamp(20px, 4vw, 30px);
+      margin: 0;
+      letter-spacing: 2px;
+    }
+
+    .subtitle {
+      font-size: 12px;
+      color: #888;
+      margin-top: 6px;
+    }
+
+    #score {
+      font-size: 22px;
+      font-weight: bold;
+      letter-spacing: 2px;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: auto;
+      background: #f7f7f7;
+      border-bottom: 2px solid #777;
+      image-rendering: pixelated;
+    }
+
+    .controls {
+      text-align: center;
+      margin-top: 20px;
+      font-size: 13px;
+      line-height: 2;
+    }
+
+    button {
+      border: 2px solid #555;
+      background: #555;
+      color: white;
+      padding: 10px 18px;
+      font-family: inherit;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 12px;
+    }
+
+    button:hover {
+      background: #333;
+    }
+
+    .message {
+      text-align: center;
+      min-height: 24px;
+      font-weight: bold;
+      margin-top: 12px;
+    }
+  </style>
+</head>
+
+<body>
+  <main class="game-container">
+    <header class="top">
+      <div>
+        <h1>TAXAS RUN</h1>
+        <div class="subtitle">
+          Uma corrida contra os impostos
+        </div>
+      </div>
+
+      <div id="score">00000</div>
+    </header>
+
+    <canvas id="game" width="1000" height="300">
+      Seu navegador não suporta Canvas.
+    </canvas>
+
+    <div class="message" id="message">
+      Prepare-se para fugir das taxas!
+    </div>
+
+    <div class="controls">
+      ESPAÇO / ↑ = PULAR &nbsp; | &nbsp;
+      ↓ = ABAIXAR &nbsp; | &nbsp;
+      R = REINICIAR
+      <br>
+      <button id="startButton">COMEÇAR JOGO</button>
+    </div>
+  </main>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+    const scoreElement = document.getElementById("score");
+    const messageElement = document.getElementById("message");
+    const startButton = document.getElementById("startButton");
+
+    const ground = 245;
+
+    let running = false;
+    let gameOver = false;
+    let score = 0;
+    let speed = 6;
+    let frame = 0;
+    let obstacles = [];
+    let particles = [];
+
+    const lula = {
+      x: 100,
+      y: ground - 58,
+      width: 42,
+      height: 58,
+      velocityY: 0,
+      jumping: false,
+      ducking: false
+    };
+
+    // Desenha o personagem em estilo pixel-art.
+    // É uma representação caricatural, não uma foto.
+    function drawLula() {
+      const x = lula.x;
+      const y = lula.y;
+      const duck = lula.ducking && !lula.jumping;
+
+      ctx.save();
+
+      if (duck) {
+        ctx.translate(0, 18);
+      }
+
+      // Pernas
+      ctx.fillStyle = "#333333";
+      ctx.fillRect(x + 8, y + 43, 10, 15);
+      ctx.fillRect(x + 25, y + 43, 10, 15);
+
+      // Sapatos
+      ctx.fillRect(x + 3, y + 54, 17, 5);
+      ctx.fillRect(x + 23, y + 54, 17, 5);
+
+      // Terno
+      ctx.fillStyle = "#444444";
+      ctx.fillRect(x + 5, y + 22, 32, 27);
+
+      // Camisa
+      ctx.fillStyle = "#eeeeee";
+      ctx.fillRect(x + 17, y + 23, 10, 17);
+
+      // Gravata vermelha
+      ctx.fillStyle = "#a33b3b";
+      ctx.fillRect(x + 20, y + 26, 5, 15);
+
+      // Braço
+      ctx.fillStyle = "#444444";
+      ctx.fillRect(x, y + 27, 9, 19);
+      ctx.fillRect(x + 33, y + 28, 9, 17);
+
+      // Cabeça
+      ctx.fillStyle = "#c99168";
+      ctx.fillRect(x + 8, y + 3, 29, 25);
+
+      // Cabelo grisalho
+      ctx.fillStyle = "#d1d1d1";
+      ctx.fillRect(x + 6, y, 30, 7);
+      ctx.fillRect(x + 5, y + 5, 5, 10);
+      ctx.fillRect(x + 33, y + 5, 5, 9);
+
+      // Orelha
+      ctx.fillStyle = "#c99168";
+      ctx.fillRect(x + 34, y + 13, 5, 7);
+
+      // Olhos
+      ctx.fillStyle = "#222222";
+      ctx.fillRect(x + 27, y + 11, 3, 3);
+
+      // Nariz
+      ctx.fillRect(x + 31, y + 15, 4, 3);
+
+      // Barba
+      ctx.fillStyle = "#d7d7d7";
+      ctx.fillRect(x + 10, y + 20, 24, 8);
+      ctx.fillRect(x + 14, y + 27, 16, 3);
+
+      // Sorriso
+      ctx.fillStyle = "#555555";
+      ctx.fillRect(x + 24, y + 23, 7, 2);
+
+      ctx.restore();
+    }
+
+    function drawTax(obstacle) {
+      const x = obstacle.x;
+      const y = obstacle.y;
+      const w = obstacle.width;
+      const h = obstacle.height;
+
+      ctx.fillStyle = "#4b4b4b";
+
+      // Corpo do boleto
+      ctx.fillRect(x, y, w, h);
+
+      // Recibo serrilhado
+      ctx.fillStyle = "#f7f7f7";
+      for (let i = 0; i < w; i += 10) {
+        ctx.fillRect(x + i, y + h - 3, 5, 3);
+      }
+
+      ctx.fillStyle = "#ffffff";
+      ctx.textAlign = "center";
+      ctx.font = "bold 11px monospace";
+      ctx.fillText("TAXA", x + w / 2, y + 17);
+
+      ctx.font = "bold 9px monospace";
+      ctx.fillText("R$", x + w / 2, y + 31);
+
+      ctx.fillStyle = "#d7d7d7";
+      ctx.fillRect(x + 7, y + 37, w - 14, 3);
+      ctx.fillRect(x + 7, y + 44, w - 18, 3);
+
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 12px monospace";
+      ctx.fillText("$", x + w / 2, y + h - 12);
+    }
+
+    function drawGround() {
+      ctx.strokeStyle = "#777777";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(0, ground);
+      ctx.lineTo(canvas.width, ground);
+      ctx.stroke();
+
+      // Pequenos riscos no chão, como no jogo original
+      ctx.fillStyle = "#aaaaaa";
+
+      for (let i = 0; i < 45; i++) {
+        const x = ((i * 79 - frame * speed * 0.6)
+          % canvas.width + canvas.width) % canvas.width;
+
+        const y = ground + 5 + (i % 3) * 4;
+        ctx.fillRect(x, y, 3 + (i % 4), 1);
+      }
+    }
+
+    function spawnObstacle() {
+      const height = 55 + Math.random() * 15;
+      const width = 36 + Math.random() * 10;
+
+      obstacles.push({
+        x: canvas.width + 10,
+        y: ground - height,
+        width,
+        height,
+        passed: false,
+        label: Math.random() > 0.5 ? "TAXA" : "IMPOSTO"
+      });
+    }
+
+    function jump() {
+      if (!running || gameOver) return;
+
+      if (!lula.jumping) {
+        lula.velocityY = -13.5;
+        lula.jumping = true;
+        lula.ducking = false;
+      }
+    }
+
+    function resetGame() {
+      score = 0;
+      speed = 6;
+      frame = 0;
+      obstacles = [];
+      particles = [];
+
+      lula.y = ground - lula.height;
+      lula.velocityY = 0;
+      lula.jumping = false;
+      lula.ducking = false;
+
+      gameOver = false;
+      running = true;
+
+      messageElement.textContent =
+        "Corra, Lula! As taxas estão chegando!";
+      startButton.textContent = "REINICIAR JOGO";
+
+      requestAnimationFrame(loop);
+    }
+
+    function endGame() {
+      running = false;
+      gameOver = true;
+
+      messageElement.textContent =
+        "FIM DE JOGO! As taxas pegaram você!";
+
+      startButton.textContent = "TENTAR NOVAMENTE";
+    }
+
+    function checkCollision(a, b) {
+      // Margens pequenas deixam a colisão mais justa
+      const marginX = 7;
+      const marginY = 5;
+
+      return (
+        a.x + marginX < b.x + b.width &&
+        a.x + a.width - marginX > b.x &&
+        a.y + marginY < b.y + b.height &&
+        a.y + a.height - marginY > b.y
+      );
+    }
+
+    function drawScore() {
+      scoreElement.textContent =
+        String(Math.floor(score)).padStart(5, "0");
+    }
+
+    function drawOverlay() {
+      if (!gameOver) return;
+
+      ctx.fillStyle = "rgba(247, 247, 247, 0.88)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = "#444444";
+      ctx.textAlign = "center";
+      ctx.font = "bold 34px monospace";
+      ctx.fillText("FIM DE JOGO", canvas.width / 2, 115);
+
+      ctx.font = "18px monospace";
+      ctx.fillText(
+        "As taxas venceram desta vez!",
+        canvas.width / 2,
+        155
+      );
+
+      ctx.font = "16px monospace";
+      ctx.fillText(
+        "Pontuação: " + Math.floor(score),
+        canvas.width / 2,
+        190
+      );
+    }
+
+    function update() {
+      frame++;
+
+      // Gravidade e salto
+      lula.velocityY += 0.65;
+      lula.y += lula.velocityY;
+
+      if (lula.y >= ground - lula.height) {
+        lula.y = ground - lula.height;
+        lula.velocityY = 0;
+        lula.jumping = false;
+      }
+
+      // Gera novos boletos
+      if (frame % Math.max(45, Math.floor(95 - speed * 3)) === 0) {
+        spawnObstacle();
+      }
+
+      // Movimento e colisões
+      for (const obstacle of obstacles) {
+        obstacle.x -= speed;
+
+        if (!obstacle.passed &&
+            obstacle.x + obstacle.width < lula.x) {
+          obstacle.passed = true;
+          score += 10;
+        }
+
+        if (checkCollision(lula, obstacle)) {
+          endGame();
+          return;
+        }
+      }
+
+      obstacles = obstacles.filter(
+        obstacle => obstacle.x + obstacle.width > 0
+      );
+
+      score += 0.08;
+      speed = Math.min(12, 6 + score / 350);
+
+      drawScore();
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      drawGround();
+
+      for (const obstacle of obstacles) {
+        drawTax(obstacle);
+      }
+
+      drawLula();
+      drawOverlay();
+    }
+
+    function loop() {
+      if (!running) {
+        draw();
+        return;
+      }
+
+      update();
+      draw();
+
+      if (running) {
+        requestAnimationFrame(loop);
+      }
+    }
+
+    document.addEventListener("keydown", event => {
+      if (
+        event.code === "Space" ||
+        event.code === "ArrowUp"
+      ) {
+        event.preventDefault();
+
+        if (!running && !gameOver) {
+          resetGame();
+        } else {
+          jump();
+        }
+      }
+
+      if (event.code === "ArrowDown") {
+        event.preventDefault();
+
+        if (running && !lula.jumping) {
+          lula.ducking = true;
+        }
+      }
+
+      if (event.code === "KeyR") {
+        resetGame();
+      }
+    });
+
+    document.addEventListener("keyup", event => {
+      if (event.code === "ArrowDown") {
+        lula.ducking = false;
+      }
+    });
+
+    // Também funciona com toque em celular
+    canvas.addEventListener("pointerdown", () => {
+      if (running) {
+        jump();
+      } else if (!gameOver) {
+        resetGame();
+      }
+    });
+
+    startButton.addEventListener("click", resetGame);
+
+    // Tela inicial
+    function initialScreen() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawGround();
+      drawLula();
+
+      ctx.fillStyle = "#555555";
+      ctx.textAlign = "center";
+      ctx.font = "bold 22px monospace";
+      ctx.fillText(
+        "DESVIE DAS TAXAS!",
+        canvas.width / 2,
+        95
+      );
+
+      ctx.font = "15px monospace";
+      ctx.fillText(
+        "Pressione COMEÇAR JOGO para iniciar",
+        canvas.width / 2,
+        125
+      );
+    }
+
+    initialScreen();
+  </script>
+</body>
+</html>
